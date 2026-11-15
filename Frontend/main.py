@@ -23,6 +23,7 @@ from site_content import GITHUB, PROFILE
 
 # Where the FastAPI backend runs (override with: set BACKEND_URL=http://host:port)
 BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
+print(f"[startup] BACKEND_URL = {BACKEND_URL}", flush=True)  # visible in the hosting logs
 
 # Visitor counter is saved in this file (created automatically next to main.py)
 VISITS_FILE = Path(__file__).with_name("visits.json")
@@ -512,8 +513,8 @@ async def wake_backend() -> None:
     try:
         async with httpx.AsyncClient(timeout=WAKE_TIMEOUT) as client:
             await client.get(f"{BACKEND_URL}/")
-    except httpx.HTTPError:
-        pass
+    except httpx.HTTPError as error:
+        print(f"[wake] backend not answering yet: {error!r}", flush=True)
 
 
 def _is_waking_up(error: httpx.HTTPError) -> bool:
@@ -544,12 +545,16 @@ async def stream_answer(question: str, session_id: str | None = None, profile: s
                             yield piece
             return
         except httpx.HTTPError as error:
+            print(f"[chat] backend call failed (attempt {attempt + 1}/{attempts}): {error!r}", flush=True)
             if got_something:
                 yield "\n\n(The connection was interrupted. Please ask again.)"
                 return
             if attempt < attempts - 1 and _is_waking_up(error):
                 await asyncio.sleep(8)
                 continue
+            if isinstance(error, httpx.HTTPStatusError):  # server answered, but with an error (e.g. missing resume file)
+                yield "Sorry, the assistant ran into a problem on the server. Please try again shortly."
+                return
             yield "Sorry, the assistant is not reachable right now. Please try again in a moment."
             return
 
