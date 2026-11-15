@@ -755,7 +755,8 @@ def chat() -> None:
 if __name__ in {"__main__", "__mp_main__"}:
     ui.run(
         title=f"{PROFILE['name']} | Portfolio",
-        port=8080,
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", "8080")),  # hosting platforms (Render, etc.) provide PORT
         reload=False,
         show=False,
         storage_secret=os.getenv("STORAGE_SECRET", "portfolio-visitor-cookie"),
