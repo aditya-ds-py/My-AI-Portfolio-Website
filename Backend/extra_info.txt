@@ -1,0 +1,4 @@
+Schooling (10th): <school name>, <board>, <year>, <percentage>
+Intermediate (12th): <college name>, <stream>, <year>, <percentage>
+Languages: Hindi, English, Odia
+Hobbies: <add here>

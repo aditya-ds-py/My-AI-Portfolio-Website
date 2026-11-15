@@ -79,6 +79,14 @@ class ChatRequest(BaseModel):
     profile: str | None = None  # "it" or "core"
 
 
+def read_extra_info() -> str:
+    """Extra facts (schooling, hobbies, languages...) from Backend/extra_info.txt, if the file exists."""
+    path = Path(__file__).parent / "extra_info.txt"
+    if not path.exists():
+        return ""
+    return path.read_text(encoding="utf-8").strip()
+
+
 def build_messages(question: str, resume: Resume, jd: JobDescription | None = None, profile: str | None = None):
     """Builds the system + user messages (resume and JD go into the system prompt)."""
 
@@ -113,13 +121,16 @@ The recruiter has shared this job description (JD):
    candidate's information.
 """
 
+    extra = read_extra_info()
+    extra_block = f"\nAdditional information about the candidate:\n\n{extra}\n" if extra else ""
+
     system_prompt = f"""
 You are an AI assistant representing a job candidate.
 {profile_line}
 Below is everything you know about the candidate.
 
 {resume.model_dump_json(indent=2)}
-{jd_block}
+{extra_block}{jd_block}
 Rules:
 
 1. Answer only using this information.
