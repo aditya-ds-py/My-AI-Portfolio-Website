@@ -8,6 +8,7 @@ Then open http://localhost:8080
 Your text/details live in site_content.py. This file is only design + behaviour.
 The "Ask Anything" page (/chat) talks to the FastAPI backend (POST /chat, POST /upload-jd).
 """
+import asyncio
 import json
 import os
 import time
@@ -250,8 +251,9 @@ a.card.contact{display:flex}
   white-space:pre-wrap;word-break:break-word;animation:rise .4s var(--ease) both}
 .bubble.bot{align-self:flex-start;background:var(--card);border:1px solid var(--line);border-bottom-left-radius:6px}
 .bubble.user{align-self:flex-end;color:#fff;font-weight:500;background:linear-gradient(135deg,var(--v2),var(--v3));border-bottom-right-radius:6px}
-.typing{align-self:flex-start;display:flex;gap:5px;padding:14px 16px;border-radius:18px;background:var(--card);border:1px solid var(--line)}
+.typing{align-self:flex-start;display:flex;align-items:center;gap:5px;padding:14px 16px;border-radius:18px;background:var(--card);border:1px solid var(--line)}
 .typing i{width:7px;height:7px;border-radius:50%;background:var(--muted);animation:bounce 1s infinite}
+.wake-note{margin-left:8px;font-size:.8rem;color:var(--muted)}
 .typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
 @keyframes bounce{40%{transform:translateY(-5px);background:var(--v1)}}
 .chips{flex:none;display:flex;flex-wrap:wrap;gap:8px;padding:4px 4px 12px}
@@ -483,6 +485,7 @@ def contact() -> None:
 def home() -> None:
     ui.page_title(f"{PROFILE['name']} | {PROFILE['role']}")
     visits = register_visit()
+    ui.timer(0.5, wake_backend, once=True)  # start waking a sleeping backend while the visitor reads
     ui.element("div").classes("glow")
     navbar()
     with ui.element("main").classes("page"):
@@ -499,32 +502,62 @@ def home() -> None:
 # ----------------------------------------------------------------------------
 # 4. ASK ANYTHING (chat page)
 # ----------------------------------------------------------------------------
+# A free Render server falls asleep after 15 minutes without traffic and needs about a minute to wake up.
+# These helpers wake it as soon as someone opens the site, and wait patiently instead of failing.
+WAKE_TIMEOUT = httpx.Timeout(120, connect=60)
+
+
+async def wake_backend() -> None:
+    """Pings the backend so a sleeping server starts waking up while the visitor is still reading."""
+    try:
+        async with httpx.AsyncClient(timeout=WAKE_TIMEOUT) as client:
+            await client.get(f"{BACKEND_URL}/")
+    except httpx.HTTPError:
+        pass
+
+
+def _is_waking_up(error: httpx.HTTPError) -> bool:
+    """True for the errors a sleeping (cold-starting) server produces."""
+    if isinstance(error, httpx.HTTPStatusError):
+        return error.response.status_code in (502, 503, 504)
+    return isinstance(error, (httpx.ConnectError, httpx.TimeoutException, httpx.RemoteProtocolError))
+
+
 async def stream_answer(question: str, session_id: str | None = None, profile: str | None = None):
     """Ask the FastAPI backend (POST /chat/stream) and yield the answer piece by piece.
-    The session id lets the backend use the JD uploaded in this chat."""
+    The session id lets the backend use the JD uploaded in this chat.
+    If the server is still waking up, it retries a few times before giving up."""
     got_something = False
-    try:
-        timeout = httpx.Timeout(90, connect=10)
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            async with client.stream(
-                "POST", f"{BACKEND_URL}/chat/stream", json={"question": question, "session_id": session_id, "profile": profile}
-            ) as response:
-                response.raise_for_status()
-                async for piece in response.aiter_text():
-                    if piece:
-                        got_something = True
-                        yield piece
-    except httpx.HTTPError:
-        if got_something:
-            yield "\n\n(The connection was interrupted. Please ask again.)"
-        else:
+    attempts = 3
+    for attempt in range(attempts):
+        try:
+            async with httpx.AsyncClient(timeout=WAKE_TIMEOUT) as client:
+                async with client.stream(
+                    "POST",
+                    f"{BACKEND_URL}/chat/stream",
+                    json={"question": question, "session_id": session_id, "profile": profile},
+                ) as response:
+                    response.raise_for_status()
+                    async for piece in response.aiter_text():
+                        if piece:
+                            got_something = True
+                            yield piece
+            return
+        except httpx.HTTPError as error:
+            if got_something:
+                yield "\n\n(The connection was interrupted. Please ask again.)"
+                return
+            if attempt < attempts - 1 and _is_waking_up(error):
+                await asyncio.sleep(8)
+                continue
             yield "Sorry, the assistant is not reachable right now. Please try again in a moment."
+            return
 
 
 async def upload_jd(session_id: str, filename: str, data: bytes) -> tuple[bool, str]:
     """Send the recruiter's JD PDF to the backend. Returns (ok, label_or_error)."""
     try:
-        async with httpx.AsyncClient(timeout=90) as client:
+        async with httpx.AsyncClient(timeout=WAKE_TIMEOUT) as client:
             response = await client.post(
                 f"{BACKEND_URL}/upload-jd",
                 data={"session_id": session_id},
@@ -552,9 +585,21 @@ async def remove_jd(session_id: str) -> None:
 
 
 
+def typing_dots():
+    """Three bouncing dots. After 8 seconds a note explains the wait (a sleeping server needs ~1 minute)."""
+    with ui.element("div").classes("typing") as typing:
+        for _ in range(3):
+            ui.element("i")
+        note = ui.label("Waking up the assistant, this can take up to a minute...").classes("wake-note")
+        note.set_visibility(False)
+        ui.timer(8, lambda: note.set_visibility(True), once=True)
+    return typing
+
+
 @ui.page("/chat")
 def chat() -> None:
     ui.page_title(f"Ask Anything | {PROFILE['name']}")
+    ui.timer(0.5, wake_backend, once=True)
     ui.element("div").classes("glow")
 
     with ui.element("div").classes("chat-wrap"):
@@ -670,9 +715,7 @@ def chat() -> None:
             chips.set_visibility(False)
             say(f"Uploaded JD: {filename}", "user")
             with messages:
-                with ui.element("div").classes("typing") as typing:
-                    for _ in range(3):
-                        ui.element("i")
+                typing = typing_dots()
             scroll.scroll_to(percent=1.0)
             ok, info = await upload_jd(session_id, filename, data)
             typing.delete()
@@ -707,9 +750,7 @@ def chat() -> None:
             chips.set_visibility(False)
             with messages:
                 ui.label(question).classes("bubble user")
-                with ui.element("div").classes("typing") as typing:
-                    for _ in range(3):
-                        ui.element("i")
+                typing = typing_dots()
             scroll.scroll_to(percent=1.0)
             bubble = None
             answer = ""
