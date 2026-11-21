@@ -39,7 +39,7 @@ PROFILE = {
         {
             "icon": "insights",
             "url": "https://github.com/aditya-ds-py/My-AI-Portfolio-Website.git",
-            "title": "PulseBoard",
+            "title": "AI-Portfolio",
             "desc": "AI-powered developer portfolio featuring an interactive recruiter assistant, resume analysis, PDF job-description matching, and real-time AI chat",
             "tags": ["AI", "Python", "FastAPI"],
         },
