@@ -31,17 +31,17 @@ PROFILE = {
     "projects": [
         {
             "icon": "storefront",
-            "url": f"{GITHUB}/ShopSprint",  # change to the real repo link
-            "title": "ShopSprint",
-            "desc": "An e-commerce storefront with live inventory, UPI checkout and an admin dashboard.",
-            "tags": ["Python", "FastAPI", "React"],
+            "url": f"{https://github.com/aditya-ds-py/Revision-RAG-.git}",  # change to the real repo link
+            "title": "Rev-RAG",
+            "desc": "AI-powered RAG system answering DSA questions with context-aware responses and clickable YouTube lecture timestamps.",
+            "tags": ["RAG", "Generative-AI", "LLM"],
         },
         {
             "icon": "insights",
-            "url": f"{GITHUB}/PulseBoard",
+            "url": f"{https://github.com/aditya-ds-py/My-AI-Portfolio-Website.git}",
             "title": "PulseBoard",
-            "desc": "A real-time analytics dashboard that turns raw event streams into clear daily insights.",
-            "tags": ["SQL", "Charts", "WebSockets"],
+            "desc": "AI-powered developer portfolio featuring an interactive recruiter assistant, resume analysis, PDF job-description matching, and real-time AI chat",
+            "tags": ["AI", "Python", "FastAPI"],
         },
         {
             "icon": "school",
