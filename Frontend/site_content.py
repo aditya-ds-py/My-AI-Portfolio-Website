@@ -10,7 +10,7 @@ GITHUB = "https://github.com/aditya-ds-py"
 PROFILE = {
     "name": "Aditya Sharma",
     "initials": "ADDY",
-    "role": "Full Stack Developer\n          &\n     AI-Engineer",
+    "role": "Full Stack Developer & AI-Engineer",
     "tagline": "I design and build fast, clean and thoughtful web products, from first sketch to production.",
     "about": [
         "I am a developer who likes turning messy ideas into simple, reliable products. "
